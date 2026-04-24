@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced SocketCluster Client Test</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Enhanced SocketCluster Client Test</h1>
+
+        <!-- Connection Section -->
+        <div class="connection-section">
+            <h2>Connection Settings</h2>
+            <div class="connection-form">
+                <div class="form-group">
+                    <label for="hostname">Hostname:</label>
+                    <input type="text" id="hostname" value="tnhsvpro.nhsv.vn" placeholder="Enter hostname">
+                </div>
+
+                <div class="form-group">
+                    <label for="port">Port:</label>
+                    <input type="number" id="port" value="443" placeholder="Enter port">
+                </div>
+
+                <div class="form-group">
+                    <label for="path">Path:</label>
+                    <input type="text" id="path" value="/ws/socketcluster/" placeholder="Enter path">
+                </div>
+
+                <div class="form-group">
+                    <label for="secure">Secure (wss://):</label>
+                    <input type="checkbox" id="secure" checked>
+                </div>
+
+                <div class="form-group">
+                    <label for="autoReconnect">Auto Reconnect:</label>
+                    <input type="checkbox" id="autoReconnect" checked>
+                </div>
+
+                <div class="form-group">
+                    <label for="pingInterval">Ping Interval (ms):</label>
+                    <input type="number" id="pingInterval" value="30000" placeholder="30000">
+                </div>
+
+                <div class="form-group">
+                    <label for="ackTimeout">Ack Timeout (ms):</label>
+                    <input type="number" id="ackTimeout" value="20000" placeholder="20000">
+                </div>
+
+                <div class="button-group">
+                    <button id="connectBtn" class="primary">Connect</button>
+                    <button id="disconnectBtn" class="secondary" disabled>Disconnect</button>
+                </div>
+            </div>
+
+            <div class="status">
+                <div class="status-indicator">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="connectionStatus">Disconnected</span>
+                </div>
+                <div id="connectionInfo"></div>
+            </div>
+        </div>
+
+        <!-- Subscription Section -->
+        <div class="subscription-section">
+            <h2>Subscription Management</h2>
+            <div class="subscription-form">
+                <div class="form-group">
+                    <label for="symbolInput">Symbol(s):</label>
+                    <input type="text" id="symbolInput" value="VIX" placeholder="VIX, HSX, etc. (comma-separated)">
+                </div>
+
+                <div class="form-group">
+                    <label>Market Types:</label>
+                    <div class="channel-checkboxes">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="marketQuoteCheckbox" value="market.quote">
+                            market.quote
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="marketBidofferCheckbox" value="market.bidoffer">
+                            market.bidoffer
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="marketQuoteDrCheckbox" value="market.quote.dr">
+                            market.quote.dr
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="marketBidofferDrCheckbox" value="market.bidoffer.dr">
+                            market.bidoffer.dr
+                        </label>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="subscribeBtn" class="primary" disabled>Subscribe</button>
+                    <button id="unsubscribeBtn" class="secondary" disabled>Unsubscribe</button>
+                    <button id="unsubscribeAllBtn" class="danger" disabled>Unsubscribe All</button>
+                </div>
+            </div>
+
+            <div class="active-subscriptions">
+                <h3>Active Subscriptions</h3>
+                <div id="subscriptionsList">No active subscriptions</div>
+            </div>
+        </div>
+
+        <!-- Load Test Section -->
+        <div class="load-test-section">
+            <h2>🚀 Load Test - Subscribe đồng thời</h2>
+            <div class="load-test-form">
+                <div class="form-group">
+                    <label for="loadTestCodes">Mã CK (nhiều mã):</label>
+                    <textarea id="loadTestCodes" rows="3" placeholder="Nhập nhiều mã, phân cách bởi dấu phẩy hoặc xuống dòng&#10;Ví dụ: VN30F2503, VN30F2506, HPG, VNM, FPT"></textarea>
+                </div>
+
+                <div class="load-test-info">
+                    <p>📌 Mỗi mã sẽ subscribe <strong>2 channel</strong> cùng lúc:</p>
+                    <ul>
+                        <li><code>market.quote.&lt;CODE&gt;</code></li>
+                        <li><code>market.bidoffer.&lt;CODE&gt;</code></li>
+                    </ul>
+                </div>
+
+                <div class="button-group">
+                    <button id="loadTestStartBtn" class="primary" disabled>▶ Start Load Test</button>
+                    <button id="loadTestStopBtn" class="danger" disabled>⏹ Stop Load Test</button>
+                </div>
+            </div>
+
+            <!-- Load Test Stats -->
+            <div class="load-test-stats" id="loadTestStats" style="display: none;">
+                <h3>📊 Thống kê Load Test</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Tổng Channels</span>
+                        <span class="stat-value" id="statTotalChannels">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Tổng Messages</span>
+                        <span class="stat-value" id="statTotalMessages">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Messages/giây</span>
+                        <span class="stat-value" id="statMsgPerSec">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Thời gian chạy</span>
+                        <span class="stat-value" id="statElapsedTime">0s</span>
+                    </div>
+                </div>
+
+                <!-- Per-channel message count -->
+                <div class="channel-stats-table">
+                    <h4>Chi tiết theo channel</h4>
+                    <div id="channelStatsBody"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OTP Test Section -->
+        <div class="subscription-section">
+            <h2>OTP Test</h2>
+            <div class="subscription-form">
+                <div class="form-group">
+                    <label for="otpAccountNo">Account No:</label>
+                    <input type="text" id="otpAccountNo" value="039C200327" placeholder="Example: 039C200327" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="otpSubscriptionId">Subscription ID:</label>
+                    <input type="text" id="otpSubscriptionId" value="a1b2c3d4-e5f6-7890-abcd-ef1234567890" placeholder="UUID from backend" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="otpChannelPreview">OTP Channel:</label>
+                    <input type="text" id="otpChannelPreview" value="" placeholder="Auto-generated channel name" readonly>
+                </div>
+
+                <div class="button-group">
+                    <button id="registerOtpBtn" class="primary" disabled>Register OTP Channel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Publishing Section -->
+        <div class="publish-section">
+            <h2>Publish Message</h2>
+            <div class="publish-form">
+                <div class="form-group">
+                    <label for="publishChannel">Channel:</label>
+                    <input type="text" id="publishChannel" placeholder="Channel name (optional - uses subscribed channels if empty)" value="/api/v2/market/symbolInfo">
+                </div>
+
+                <div class="form-group">
+                    <label for="publishData">Message Data:</label>
+                    <textarea id="publishData" rows="3" placeholder='{"message": "hello", "timestamp": "2024-01-01T00:00:00Z"}'></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button id="publishBtn" class="primary" disabled>Publish</button>
+                    <button id="clearMessagesBtn" class="secondary">Clear Messages</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages Section -->
+        <div class="messages-section">
+            <h2>Messages Log</h2>
+            <div class="message-controls">
+                <label>
+                    <input type="checkbox" id="autoScrollCheckbox" checked>
+                    Auto-scroll to bottom
+                </label>
+                <button id="exportLogBtn" class="secondary">Export Log</button>
+            </div>
+            <pre id="messages"></pre>
+        </div>
+    </div>
+
+    <!-- Load libraries from local files -->
+    <!-- <script src="sc-codec-min-bin.min.js"></script> -->
+    <script src="./sc-codec-min-bin.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/socketcluster-client@17.0.1/socketcluster-client.min.js"></script> -->
+     <script src="./socketCluster.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
