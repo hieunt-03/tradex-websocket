@@ -64,6 +64,52 @@
             </div>
         </div>
 
+        <!-- SSO Login Section -->
+        <div class="sso-section">
+            <h2>SSO Login (access_token)</h2>
+            <div class="sso-form">
+                <div class="form-group">
+                    <label for="domainInput">Domain:</label>
+                    <input type="text" id="domainInput" value="nhsv" placeholder="vd: nhsv">
+                </div>
+
+                <div class="form-group form-group-top">
+                    <label for="accessTokenInput">Access Token:</label>
+                    <textarea id="accessTokenInput" rows="4" placeholder="Paste JWT access token here..."></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button id="loginBtn" class="primary" disabled>Login</button>
+                    <button id="logoutBtn" class="secondary" disabled>Logout</button>
+                    <button id="checkAuthStateBtn" class="secondary" disabled>Check Auth State</button>
+                    <span id="authStatus" class="auth-status idle">not authenticated</span>
+                </div>
+
+                <div class="form-group form-group-top">
+                    <label>Auth Token:</label>
+                    <pre id="authTokenView" class="auth-token-view">—</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Channel Subscribe Section -->
+        <div class="custom-channel-section">
+            <h2>Custom Channel Subscribe</h2>
+            <div class="subscription-form">
+                <div class="form-group">
+                    <label for="customChannelName">Channel name:</label>
+                    <input type="text" id="customChannelName" placeholder="vd: order.status.tuan, market.stock.quote, tradex.notify.global">
+                    <button id="customSubscribeBtn" class="primary" disabled>Subscribe</button>
+                </div>
+                <div class="custom-channel-hint">
+                    Gợi ý: <code>order.status.{username}</code> (cần login + đúng username) |
+                    <code>tradex.notify.global</code> (cần login) |
+                    <code>market.stock.quote</code> (public)
+                </div>
+                <div id="customChannelsList" class="custom-channels-list"></div>
+            </div>
+        </div>
+
         <!-- Subscription Section -->
         <div class="subscription-section">
             <h2>Subscription Management</h2>
