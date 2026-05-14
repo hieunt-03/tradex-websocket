@@ -22,6 +22,9 @@ class SocketClusterManager {
         this.loadTestStatsInterval = null;
         this.loadTestLastMsgCount = 0;
 
+        // Custom channel state (separate from symbol-based subscriptions)
+        this.customChannels = new Map();
+
         // DOM elements
         this.initDOMElements();
         this.initEventListeners();
@@ -85,6 +88,20 @@ class SocketClusterManager {
         this.statElapsedTime = document.getElementById('statElapsedTime');
         this.channelStatsBody = document.getElementById('channelStatsBody');
 
+        // SSO login elements
+        this.domainInput = document.getElementById('domainInput');
+        this.accessTokenInput = document.getElementById('accessTokenInput');
+        this.loginBtn = document.getElementById('loginBtn');
+        this.logoutBtn = document.getElementById('logoutBtn');
+        this.checkAuthStateBtn = document.getElementById('checkAuthStateBtn');
+        this.authStatus = document.getElementById('authStatus');
+        this.authTokenView = document.getElementById('authTokenView');
+
+        // Custom channel elements
+        this.customChannelName = document.getElementById('customChannelName');
+        this.customSubscribeBtn = document.getElementById('customSubscribeBtn');
+        this.customChannelsList = document.getElementById('customChannelsList');
+
         // OTP test elements
         this.otpAccountNoInput = document.getElementById('otpAccountNo');
         this.otpSubscriptionIdInput = document.getElementById('otpSubscriptionId');
@@ -117,6 +134,20 @@ class SocketClusterManager {
         this.registerOtpBtn.addEventListener('click', () => this.registerOtpChannel());
         this.otpAccountNoInput.addEventListener('input', () => this.updateOtpChannelPreview());
         this.otpSubscriptionIdInput.addEventListener('input', () => this.updateOtpChannelPreview());
+
+        // SSO login events
+        this.loginBtn.addEventListener('click', () => this.login());
+        this.logoutBtn.addEventListener('click', () => this.logout());
+        this.checkAuthStateBtn.addEventListener('click', () => this.showAuthState());
+
+        // Custom channel events
+        this.customSubscribeBtn.addEventListener('click', () => this.subscribeCustomChannel());
+        this.customChannelName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.subscribeCustomChannel();
+            }
+        });
 
         // Publishing events
         this.publishBtn.addEventListener('click', () => this.publish());
@@ -244,6 +275,17 @@ class SocketClusterManager {
         this.loadTestStartBtn.disabled = !isConnected || this.loadTestRunning;
         this.loadTestStopBtn.disabled = !this.loadTestRunning;
         this.loadTestCodesInput.disabled = this.loadTestRunning;
+
+        // SSO login controls
+        this.loginBtn.disabled = !isConnected;
+        this.logoutBtn.disabled = !isConnected;
+        this.checkAuthStateBtn.disabled = !isConnected;
+        this.domainInput.disabled = !isConnected;
+        this.accessTokenInput.disabled = !isConnected;
+
+        // Custom channel controls
+        this.customSubscribeBtn.disabled = !isConnected;
+        this.customChannelName.disabled = !isConnected;
 
         // Unsubscribe/Publish controls
         const hasSubscriptions = this.currentSubscriptions.size > 0;
@@ -528,12 +570,19 @@ class SocketClusterManager {
         this.socket.on('authenticate', (signedAuthToken) => {
             this.logMessage('Successfully authenticated', 'success');
             this.updateConnectionInfo(`Authenticated | Socket ID: ${this.socket.id}`);
+            this.refreshAuthView();
         });
 
         this.socket.on('deauthenticate', (oldSignedAuthToken) => {
             this.logMessage('Deauthenticated', 'warning');
             this.updateConnectionInfo(`Not authenticated | Socket ID: ${this.socket.id}`);
+            this.refreshAuthView();
         });
+
+        // Track authStateChange (SC v14+)
+        if (typeof this.socket.on === 'function') {
+            this.socket.on('authStateChange', () => this.refreshAuthView());
+        }
 
         // Handle subscription events
         this.socket.on('subscribe', (channelName) => {
@@ -1014,6 +1063,198 @@ class SocketClusterManager {
             html += `</div>`;
         }
         this.channelStatsBody.innerHTML = html;
+    }
+
+    // =============================================
+    // SSO LOGIN METHODS
+    // =============================================
+
+    login() {
+        if (!this.socket || this.socket.state !== 'open') {
+            this.logMessage('Error: Connect to server first', 'error');
+            return;
+        }
+
+        const accessToken = this.accessTokenInput.value.trim();
+        const domain = (this.domainInput.value.trim() || 'nhsv');
+
+        if (!accessToken) {
+            this.logMessage('Error: access_token is required', 'error');
+            return;
+        }
+
+        this.logMessage(`Emit login (grant_type=access_token, domain=${domain})...`, 'info');
+
+        this.socket.emit('login', {
+            body: {
+                grant_type: 'access_token',
+                access_token: accessToken,
+                domain: domain,
+            },
+            headers: {
+                'accept-language': 'vi',
+            },
+        }, (err, data) => {
+            if (err) {
+                const errMsg = err.code || err.message || JSON.stringify(err);
+                this.logMessage(`Login failed: ${errMsg}`, 'error');
+            } else {
+                this.logMessage('Login OK', 'success');
+                if (data) {
+                    const preview = JSON.stringify(data).slice(0, 300);
+                    this.logMessage(`Login response: ${preview}`, 'info');
+                }
+            }
+            this.refreshAuthView();
+        });
+    }
+
+    logout() {
+        if (!this.socket) {
+            this.logMessage('Error: Not connected', 'error');
+            return;
+        }
+
+        this.socket.emit('logout', {});
+        this.logMessage('Emit logout', 'info');
+        setTimeout(() => this.refreshAuthView(), 200);
+    }
+
+    showAuthState() {
+        if (!this.socket) {
+            this.logMessage('Not connected — no auth state', 'warning');
+            this.setAuthStatus('idle', 'not authenticated');
+            this.authTokenView.textContent = '—';
+            return;
+        }
+
+        const state = this.socket.authState;
+        const token = this.socket.authToken;
+        this.logMessage(`Auth state: ${state}`, 'info');
+        if (token) {
+            this.logMessage(`Auth token: ${JSON.stringify(token)}`, 'info');
+        } else {
+            this.logMessage('No auth token', 'info');
+        }
+        this.refreshAuthView();
+    }
+
+    refreshAuthView() {
+        if (!this.socket) {
+            this.setAuthStatus('idle', 'not authenticated');
+            this.authTokenView.textContent = '—';
+            return;
+        }
+
+        const isAuthed = this.socket.authState === 'authenticated';
+        if (isAuthed) {
+            this.setAuthStatus('ok', 'authenticated');
+        } else {
+            this.setAuthStatus('idle', 'not authenticated');
+        }
+
+        const token = this.socket.authToken;
+        this.authTokenView.textContent = token ? JSON.stringify(token, null, 2) : '—';
+    }
+
+    setAuthStatus(state, text) {
+        this.authStatus.className = `auth-status ${state}`;
+        this.authStatus.textContent = text;
+    }
+
+    // =============================================
+    // CUSTOM CHANNEL SUBSCRIBE METHODS
+    // =============================================
+
+    cssId(name) {
+        return name.replace(/[^a-zA-Z0-9]/g, '_');
+    }
+
+    subscribeCustomChannel() {
+        if (!this.socket || this.socket.state !== 'open') {
+            this.logMessage('Error: Connect to server first', 'error');
+            return;
+        }
+
+        const name = this.customChannelName.value.trim();
+        if (!name) {
+            this.logMessage('Error: Channel name is required', 'error');
+            return;
+        }
+
+        if (this.customChannels.has(name)) {
+            this.logMessage(`Already subscribed to ${name}`, 'warning');
+            return;
+        }
+
+        this.logMessage(`Subscribing to ${name}...`, 'subscription');
+        const subscription = this.socket.subscribe(name, { data: { returnSnapShot: true } });
+
+        const safeId = this.cssId(name);
+        const wrap = document.createElement('div');
+        wrap.className = 'custom-channel-row';
+        wrap.dataset.channel = name;
+        wrap.innerHTML = `
+            <div class="custom-channel-header">
+                <div class="custom-channel-title">
+                    <b>${name}</b>
+                    <span class="badge pending" id="badge_${safeId}">pending</span>
+                </div>
+                <button class="danger small" data-action="unsub">Unsubscribe</button>
+            </div>
+            <pre class="custom-channel-msg" id="msg_${safeId}">(no message yet)</pre>
+        `;
+
+        wrap.querySelector('[data-action="unsub"]').addEventListener('click', () => {
+            this.unsubscribeCustomChannel(name);
+        });
+
+        this.customChannelsList.appendChild(wrap);
+        this.customChannels.set(name, { subscription, element: wrap });
+        this.customChannelName.value = '';
+
+        const badge = document.getElementById(`badge_${safeId}`);
+        const msgEl = document.getElementById(`msg_${safeId}`);
+
+        subscription.on('subscribe', () => {
+            this.logMessage(`Subscribed: ${name}`, 'success');
+            if (badge) {
+                badge.className = 'badge sub';
+                badge.textContent = 'subscribed';
+            }
+        });
+
+        subscription.on('subscribeFail', (err) => {
+            const errMsg = err && err.message ? err.message : err;
+            this.logMessage(`subscribeFail ${name}: ${errMsg}`, 'error');
+            if (badge) {
+                badge.className = 'badge fail';
+                badge.textContent = `fail: ${errMsg}`;
+            }
+        });
+
+        subscription.watch((data) => {
+            if (!msgEl) return;
+            const t = new Date().toISOString().substr(11, 8);
+            msgEl.textContent = `[${t}] ${JSON.stringify(data)}\n${msgEl.textContent}`;
+        });
+    }
+
+    unsubscribeCustomChannel(name) {
+        const entry = this.customChannels.get(name);
+        if (!entry) return;
+
+        try {
+            entry.subscription.unsubscribe();
+            this.logMessage(`Unsubscribed from ${name}`, 'success');
+        } catch (error) {
+            this.logMessage(`Failed to unsubscribe ${name}: ${error.message}`, 'error');
+        }
+
+        if (entry.element && entry.element.parentNode) {
+            entry.element.parentNode.removeChild(entry.element);
+        }
+        this.customChannels.delete(name);
     }
 
     clearMessages() {
