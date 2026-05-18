@@ -1202,7 +1202,6 @@ class SocketClusterManager {
                 </div>
                 <button class="danger small" data-action="unsub">Unsubscribe</button>
             </div>
-            <pre class="custom-channel-msg" id="msg_${safeId}">(no message yet)</pre>
         `;
 
         wrap.querySelector('[data-action="unsub"]').addEventListener('click', () => {
@@ -1214,7 +1213,6 @@ class SocketClusterManager {
         this.customChannelName.value = '';
 
         const badge = document.getElementById(`badge_${safeId}`);
-        const msgEl = document.getElementById(`msg_${safeId}`);
 
         subscription.on('subscribe', () => {
             this.logMessage(`Subscribed: ${name}`, 'success');
@@ -1234,9 +1232,7 @@ class SocketClusterManager {
         });
 
         subscription.watch((data) => {
-            if (!msgEl) return;
-            const t = new Date().toISOString().substr(11, 8);
-            msgEl.textContent = `[${t}] ${JSON.stringify(data)}\n${msgEl.textContent}`;
+            this.logMessage(`📦 [${name}] ${JSON.stringify(data)}`, 'message');
         });
     }
 
